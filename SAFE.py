@@ -83,7 +83,7 @@ if df is not None and geo_df is not None:
     # Custom labels for partial years
     animal_yearly['Label'] = animal_yearly['Intake Year'].astype(str)
     animal_yearly.loc[animal_yearly['Intake Year'] == 2022, 'Label'] += '\n(Data starts July)'
-    animal_yearly.loc[animal_yearly['Intake Year'] == 2025, 'Label'] += '\n(Data ends today)'
+    animal_yearly.loc[animal_yearly['Intake Year'] == 2025, 'Label'] += '\n(Data ends July 9)'
     
     # Choropleth map data
     zip_counts = df.drop_duplicates('Animal #').groupby('Zipcode').size().reset_index(name='Animal Count')
@@ -139,6 +139,10 @@ if df is not None and geo_df is not None:
     
     # --- Yearly Intake Trends ---
     st.markdown("<h2 style='margin-bottom: 0.5em;'>Yearly Intake Trends</h2>", unsafe_allow_html=True)
+    # Update 2025 label
+    animal_yearly['Label'] = animal_yearly['Intake Year'].astype(str)
+    animal_yearly.loc[animal_yearly['Intake Year'] == 2022, 'Label'] += '\n(Data starts July)'
+    animal_yearly.loc[animal_yearly['Intake Year'] == 2025, 'Label'] += '\n(Data ends July 9)'
     fig_bar = px.bar(
         animal_yearly,
         x='Label',
@@ -153,24 +157,36 @@ if df is not None and geo_df is not None:
         xaxis = dict(type='category', tickmode='array', tickvals=animal_yearly['Label'], ticktext=animal_yearly['Label'])
     )
     st.plotly_chart(fig_bar, use_container_width=True)
-    
+
     # --- Geographic Distribution ---
     st.markdown("<h2 style='margin-bottom: 0.5em;'>Geographic Distribution of Animals</h2>", unsafe_allow_html=True)
+    map_df['Animal Count'] = map_df['Animal Count'].astype(int)
+    # Use the original geo_df as geojson and match on ZCTA5CE10
     fig_map = px.choropleth_mapbox(
         map_df,
-        geojson=map_df.geometry,
-        locations=map_df.index,
+        geojson=geo_df,
+        locations='ZCTA5CE10',
+        featureidkey="properties.ZCTA5CE10",
         color="Animal Count",
         mapbox_style="carto-positron",
         zoom=8,
         center={"lat": 42.9, "lon": -78.8},
         opacity=0.6,
-        labels={"Animal Count": "Animals"},
-        color_continuous_scale=["white", "red"]
+        labels={"Animal Count": "Animals", "ZCTA5CE10": "ZIP Code"},
+        color_continuous_scale=["white", "red"],
+        hover_data={"ZCTA5CE10": True, "Animal Count": True}
     )
     fig_map.update_geos(fitbounds="locations", visible=False)
     fig_map.update_layout(margin={"r":0,"t":0,"l":0,"b":0})
     st.plotly_chart(fig_map, use_container_width=True)
+
+    # Table of ZIP codes and animal counts, sorted descending
+    st.markdown("<h4>Animals by ZIP Code</h4>", unsafe_allow_html=True)
+    zip_table = map_df[['ZCTA5CE10', 'Animal Count']].copy()
+    zip_table = zip_table.rename(columns={'ZCTA5CE10': 'ZIP Code', 'Animal Count': 'Count'})
+    zip_table = zip_table[zip_table['Count'] > 0]
+    zip_table = zip_table.sort_values('Count', ascending=False).reset_index(drop=True)
+    st.dataframe(zip_table, hide_index=True)
     
     # Footer
     st.markdown("---")
